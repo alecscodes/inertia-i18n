@@ -1,6 +1,11 @@
+/composer.lock
 /vendor/
+
 /.phpunit.cache/
 /.pest.cache/
 /coverage/
-/composer.lock
-/.DS_Store
+
+.DS_Store
+**/.DS_Store
+
+/logs/
