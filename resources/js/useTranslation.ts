@@ -8,11 +8,14 @@ type PageProps = Record<string, unknown>;
  * Uses a single-pass reduce; skips entirely when no params are given.
  */
 function replaceParams(raw: string, params?: Params): string {
-    if (!params) return raw;
+    if (!params) {
+        return raw;
+    }
 
     return Object.entries(params).reduce((str, [key, val]) => {
         // Escape special regex chars in the placeholder key
         const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
         return str.replace(new RegExp(`:${escaped}`, 'g'), String(val));
     }, raw);
 }
@@ -32,13 +35,20 @@ function choosePluralForm(line: string, count: number): string {
         const t = part.trim();
 
         const exact = t.match(/^\{(\d+)}\s*(.*)$/s);
-        if (exact && Number(exact[1]) === count) return exact[2];
+
+        if (exact && Number(exact[1]) === count) {
+            return exact[2];
+        }
 
         const range = t.match(/^\[(\d+),(\*|\d+)]\s*(.*)$/s);
+
         if (range) {
             const min = Number(range[1]);
             const max = range[2] === '*' ? Infinity : Number(range[2]);
-            if (count >= min && count <= max) return range[3];
+
+            if (count >= min && count <= max) {
+                return range[3];
+            }
         }
     }
 
@@ -71,6 +81,7 @@ export function useTranslation(props: PageProps): {
 
     const translations: TranslationTree = (() => {
         const v = props.translations;
+
         return v && typeof v === 'object' && !Array.isArray(v)
             ? (v as TranslationTree)
             : {};
@@ -79,6 +90,7 @@ export function useTranslation(props: PageProps): {
     /** Translate a key, optionally replacing :param placeholders. */
     const t = (key: string, params?: Params): string => {
         const raw = translations[key.trim()];
+
         return raw !== undefined ? replaceParams(raw, params) : key;
     };
 
@@ -91,9 +103,13 @@ export function useTranslation(props: PageProps): {
      */
     const tc = (key: string, count: number, params?: Params): string => {
         const raw = translations[key.trim()];
-        if (raw === undefined) return key;
+
+        if (raw === undefined) {
+            return key;
+        }
 
         const form = choosePluralForm(raw, count);
+
         return replaceParams(form, { count, ...params });
     };
 
