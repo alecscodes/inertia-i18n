@@ -40,18 +40,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-php-${{ matrix.php-version }}-composer-${{ hashFiles('package/inertia-i18n/composer.lock', 'package/inertia-i18n/composer.json') }}
+          key: ${{ runner.os }}-php-${{ matrix.php-version }}-composer-${{ hashFiles('composer.lock', 'composer.json') }}
           restore-keys: |
             ${{ runner.os }}-php-${{ matrix.php-version }}-composer-
 
       - name: Composer Validate
-        working-directory: package/inertia-i18n
         run: composer validate
 
       - name: Install Dependencies
-        working-directory: package/inertia-i18n
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Run Tests
-        working-directory: package/inertia-i18n
         run: composer test
