@@ -1,0 +1,63 @@
+name: inertia-i18n
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+      - master
+    paths:
+      - 'package/inertia-i18n/**'
+      - '.github/workflows/inertia-i18n-tests.yml'
+  pull_request:
+    branches:
+      - develop
+      - main
+      - master
+    paths:
+      - 'package/inertia-i18n/**'
+      - '.github/workflows/inertia-i18n-tests.yml'
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.2', '8.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          tools: composer:v2
+          coverage: none
+
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php-${{ matrix.php-version }}-composer-${{ hashFiles('package/inertia-i18n/composer.lock', 'package/inertia-i18n/composer.json') }}
+          restore-keys: |
+            ${{ runner.os }}-php-${{ matrix.php-version }}-composer-
+
+      - name: Composer Validate
+        working-directory: package/inertia-i18n
+        run: composer validate
+
+      - name: Install Dependencies
+        working-directory: package/inertia-i18n
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Run Tests
+        working-directory: package/inertia-i18n
+        run: composer test
