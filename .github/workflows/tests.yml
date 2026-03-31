@@ -6,17 +6,11 @@ on:
       - develop
       - main
       - master
-    paths:
-      - 'package/inertia-i18n/**'
-      - '.github/workflows/inertia-i18n-tests.yml'
   pull_request:
     branches:
       - develop
       - main
       - master
-    paths:
-      - 'package/inertia-i18n/**'
-      - '.github/workflows/inertia-i18n-tests.yml'
 
 jobs:
   tests:
@@ -25,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php-version: ['8.2', '8.3']
+        php-version: ["8.2", "8.3"]
 
     steps:
       - name: Checkout
