@@ -2,124 +2,75 @@ name: inertia-i18n
 
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   php:
+    name: PHP ${{ matrix.php }} · Laravel ${{ matrix.laravel }} · Inertia ${{ matrix.inertia }}
     runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
         include:
-          - php: '8.2'
-            laravel: '^12.0'
-            inertia: '^2.0'
-            testbench: '^10.0'
-            pest: '^3.0'
-          - php: '8.2'
-            laravel: '^12.0'
-            inertia: '^3.0'
-            testbench: '^10.0'
-            pest: '^3.0'
-          - php: '8.3'
-            laravel: '^13.0'
-            inertia: '^2.0'
-            testbench: '^11.0'
-            pest: '^3.0'
-          - php: '8.3'
-            laravel: '^13.0'
-            inertia: '^3.0'
-            testbench: '^11.0'
-            pest: '^3.0'
-          - php: '8.4'
-            laravel: '^13.0'
-            inertia: '^3.0'
-            testbench: '^11.0'
-            pest: '^4.0'
+          - { php: '8.2', laravel: '12', inertia: '2', testbench: '10', pest: '3' }
+          - { php: '8.2', laravel: '12', inertia: '3', testbench: '10', pest: '3' }
+          - { php: '8.3', laravel: '13', inertia: '2', testbench: '11', pest: '4' }
+          - { php: '8.4', laravel: '13', inertia: '3', testbench: '11', pest: '4' }
+          - { php: '8.5', laravel: '13', inertia: '3', testbench: '11', pest: '4' }
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           tools: composer:v2
           coverage: none
-      - name: Validate Composer manifest
-        run: composer validate --strict
-      - name: Resolve compatible dependency family
-        run: >-
-          composer update --with-all-dependencies --no-interaction --prefer-dist --no-progress
-          --with="illuminate/support:${{ matrix.laravel }}"
-          --with="illuminate/view:${{ matrix.laravel }}"
-          --with="inertiajs/inertia-laravel:${{ matrix.inertia }}"
-          --with="orchestra/testbench:${{ matrix.testbench }}"
-          --with="pestphp/pest:${{ matrix.pest }}"
-      - name: Check PHP syntax
-        run: find src config tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Run PHP tests
-        run: composer test
 
-  legacy-php:
-    # Laravel 10/11 are no longer security-supported. Keep checking declared
-    # historical compatibility when Composer can resolve it, but never bypass
-    # Composer's advisory blocking to make these rows pass.
-    name: legacy-compatibility (informational/unverified)
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - php: '8.2'
-            laravel: '^10.0'
-            inertia: '^2.0'
-            testbench: '^8.0'
-            pest: '^2.0'
-          - php: '8.2'
-            laravel: '^11.35'
-            inertia: '^2.0'
-            testbench: '^9.0'
-            pest: '^3.0'
-          - php: '8.2'
-            laravel: '^11.35'
-            inertia: '^3.0'
-            testbench: '^9.0'
-            pest: '^3.0'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ matrix.php }}
-          tools: composer:v2
-          coverage: none
-      - name: Validate Composer manifest
+      - name: Validate composer.json
         run: composer validate --strict
-      - name: Resolve legacy dependency family with security checks enabled
+
+      # Composer's default security policy stays on: dependency sets with
+      # known advisories fail to resolve instead of being installed.
+      - name: Install dependencies
         run: >-
           composer update --with-all-dependencies --no-interaction --prefer-dist --no-progress
-          --with="illuminate/support:${{ matrix.laravel }}"
-          --with="illuminate/view:${{ matrix.laravel }}"
-          --with="inertiajs/inertia-laravel:${{ matrix.inertia }}"
-          --with="orchestra/testbench:${{ matrix.testbench }}"
-          --with="pestphp/pest:${{ matrix.pest }}"
-      - name: Check PHP syntax
-        run: find src config tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Run PHP tests
+          --with="illuminate/support:^${{ matrix.laravel }}.0"
+          --with="illuminate/view:^${{ matrix.laravel }}.0"
+          --with="inertiajs/inertia-laravel:^${{ matrix.inertia }}.0"
+          --with="orchestra/testbench:^${{ matrix.testbench }}.0"
+          --with="pestphp/pest:^${{ matrix.pest }}.0"
+
+      - name: Run tests
         run: composer test
 
   frontend:
+    name: Frontend (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: npm
+
       - run: npm ci
       - run: npm run typecheck
       - run: npm test

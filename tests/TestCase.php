@@ -15,8 +15,6 @@ abstract class TestCase extends OrchestraTestCase
 
     protected function defineEnvironment($app): void
     {
-        $app['config']->set('inertia-i18n.shared', []);
-        $app['config']->set('inertia-i18n.fallback', true);
         $app['view']->addLocation(__DIR__.'/views');
     }
 }

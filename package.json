@@ -2,6 +2,14 @@
   "name": "inertia-i18n-frontend-checks",
   "private": true,
   "type": "module",
-  "scripts": { "typecheck": "tsc --noEmit", "test": "tsc && node --test tests/js/*.test.mjs" },
-  "devDependencies": { "typescript": "^5.9.3" }
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "test": "node --test \"tests/js/*.test.mjs\""
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
 }

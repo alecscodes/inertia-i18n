@@ -1,7 +1,6 @@
 /composer.lock
 /vendor/
 /node_modules/
-/.test-dist/
 
 /.phpunit.cache/
 /.pest.cache/

@@ -36,47 +36,24 @@ final class InertiaI18nServiceProvider extends ServiceProvider
     {
         $localeProp = config('inertia-i18n.props.locale', 'locale');
         $transProp = config('inertia-i18n.props.translations', 'translations');
-        $localesProp = config('inertia-i18n.props.translation_locales', 'translationLocales');
-        $resolveShared = static function (): ?array {
-            $request = app('request');
-            $locale = app()->getLocale();
-            $shared = (array) config('inertia-i18n.shared', []);
-            $fallbackEnabled = (bool) config('inertia-i18n.fallback', true);
-            $fallbackLocale = app('translator')->getFallback();
-            $langRoot = realpath(lang_path()) ?: lang_path();
-            $inputKey = hash('sha256', serialize([$locale, $shared, $fallbackEnabled, $fallbackLocale, $langRoot]));
-            $cacheKey = '__inertia_i18n_shared_results';
-            $cache = (array) $request->attributes->get($cacheKey, []);
-            if (array_key_exists($inputKey, $cache)) {
-                return $cache[$inputKey];
-            }
-            $result = empty($shared)
-                ? null
-                : TranslationLoader::loadWithMetadata($locale, ...$shared);
-            $cache[$inputKey] = $result;
-            $request->attributes->set($cacheKey, $cache);
-            return $result;
-        };
 
+        // Both props are closures so they are resolved when the response is
+        // rendered — after middleware has set the request's locale — and are
+        // skipped entirely by partial reloads that don't ask for them.
         Inertia::share([
             $localeProp => static fn (): string => app()->getLocale(),
 
-            $transProp => static function () use ($resolveShared): array|object|null {
-                $result = $resolveShared();
-                if ($result === null) {
-                    return null;
-                }
-                $catalog = $result['translations'];
-                return $catalog === [] ? [] : (object) $catalog;
-            },
+            // null when no shared groups are configured (or none resolve).
+            $transProp => static function (): ?object {
+                $shared = (array) config('inertia-i18n.shared', []);
 
-            $localesProp => static function () use ($resolveShared): array|object|null {
-                $result = $resolveShared();
-                if ($result === null) {
+                if ($shared === []) {
                     return null;
                 }
-                $locales = $result['translationLocales'];
-                return $locales === [] ? [] : (object) $locales;
+
+                $translations = TranslationLoader::load(app()->getLocale(), ...$shared);
+
+                return $translations === [] ? null : (object) $translations;
             },
         ]);
     }
