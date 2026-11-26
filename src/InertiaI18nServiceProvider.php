@@ -36,23 +36,24 @@ final class InertiaI18nServiceProvider extends ServiceProvider
     {
         $localeProp = config('inertia-i18n.props.locale', 'locale');
         $transProp = config('inertia-i18n.props.translations', 'translations');
-        $shared = (array) config('inertia-i18n.shared', []);
 
+        // Both props are closures so they are resolved when the response is
+        // rendered — after middleware has set the request's locale — and are
+        // skipped entirely by partial reloads that don't ask for them.
         Inertia::share([
-            // Always share the current locale
-            $localeProp => app()->getLocale(),
+            $localeProp => static fn (): string => app()->getLocale(),
 
-            // Share shared translations on every response.
-            // Returns null (shared as nothing) when no shared groups are configured,
-            // so the prop is omitted entirely rather than sent as an empty object.
-            $transProp => static function () use ($shared): ?array {
-                if (empty($shared)) {
+            // null when no shared groups are configured (or none resolve).
+            $transProp => static function (): ?object {
+                $shared = (array) config('inertia-i18n.shared', []);
+
+                if ($shared === []) {
                     return null;
                 }
 
-                $locale = app()->getLocale();
+                $translations = TranslationLoader::load(app()->getLocale(), ...$shared);
 
-                return TranslationLoader::load($locale, ...$shared) ?: null;
+                return $translations === [] ? null : (object) $translations;
             },
         ]);
     }

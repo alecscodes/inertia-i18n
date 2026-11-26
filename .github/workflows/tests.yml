@@ -2,53 +2,75 @@ name: inertia-i18n
 
 on:
   push:
-    branches:
-      - develop
-      - main
-      - master
+    branches: [main]
   pull_request:
-    branches:
-      - develop
-      - main
-      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  tests:
+  php:
+    name: PHP ${{ matrix.php }} · Laravel ${{ matrix.laravel }} · Inertia ${{ matrix.inertia }}
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
-        php-version: ["8.2", "8.3"]
+        include:
+          - { php: '8.2', laravel: '12', inertia: '2', testbench: '10', pest: '3' }
+          - { php: '8.2', laravel: '12', inertia: '3', testbench: '10', pest: '3' }
+          - { php: '8.3', laravel: '13', inertia: '2', testbench: '11', pest: '4' }
+          - { php: '8.4', laravel: '13', inertia: '3', testbench: '11', pest: '4' }
+          - { php: '8.5', laravel: '13', inertia: '3', testbench: '11', pest: '4' }
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php-version }}
+          php-version: ${{ matrix.php }}
           tools: composer:v2
           coverage: none
 
-      - name: Get Composer Cache Directory
-        id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+      - name: Validate composer.json
+        run: composer validate --strict
 
-      - name: Cache Composer
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-php-${{ matrix.php-version }}-composer-${{ hashFiles('composer.lock', 'composer.json') }}
-          restore-keys: |
-            ${{ runner.os }}-php-${{ matrix.php-version }}-composer-
+      # Composer's default security policy stays on: dependency sets with
+      # known advisories fail to resolve instead of being installed.
+      - name: Install dependencies
+        run: >-
+          composer update --with-all-dependencies --no-interaction --prefer-dist --no-progress
+          --with="illuminate/support:^${{ matrix.laravel }}.0"
+          --with="illuminate/view:^${{ matrix.laravel }}.0"
+          --with="inertiajs/inertia-laravel:^${{ matrix.inertia }}.0"
+          --with="orchestra/testbench:^${{ matrix.testbench }}.0"
+          --with="pestphp/pest:^${{ matrix.pest }}.0"
 
-      - name: Composer Validate
-        run: composer validate
-
-      - name: Install Dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: Run Tests
+      - name: Run tests
         run: composer test
+
+  frontend:
+    name: Frontend (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

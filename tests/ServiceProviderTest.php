@@ -1,41 +1,8 @@
 <?php
 
 use AlecsCodes\InertiaI18n\InertiaI18nServiceProvider;
-use Illuminate\Support\Facades\File;
 use Inertia\Inertia;
 use Inertia\Response;
-
-function inertiaProps(\Inertia\Response $inertiaResponse): array
-{
-    $request = \Illuminate\Http\Request::create('/', 'GET', server: [
-        'HTTP_X_INERTIA' => 'true',
-        'HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest',
-    ]);
-
-    $response = $inertiaResponse->toResponse($request);
-    $payload = json_decode($response->getContent(), true);
-
-    return is_array($payload) && isset($payload['props']) && is_array($payload['props'])
-        ? $payload['props']
-        : [];
-}
-
-beforeEach(function () {
-    // Reset Inertia shared data between tests
-    Inertia::flushShared();
-
-    config()->set('inertia-i18n.props.locale', 'locale');
-    config()->set('inertia-i18n.props.translations', 'translations');
-    config()->set('inertia-i18n.shared', []);
-
-    (new InertiaI18nServiceProvider(app()))->boot();
-});
-
-afterEach(function () {
-    if (isset($this->langBase) && is_dir($this->langBase)) {
-        File::deleteDirectory($this->langBase);
-    }
-});
 
 // ---------------------------------------------------------------------------
 // Service provider registration
@@ -68,24 +35,21 @@ describe('InertiaI18nServiceProvider', function () {
     it('shares the locale prop on every Inertia response', function () {
         app()->setLocale('it');
 
-        Inertia::flushShared();
-        (new InertiaI18nServiceProvider(app()))->boot();
-
-        $shared = Inertia::getShared();
-
-        expect($shared)->toHaveKey('locale');
-        expect(value($shared['locale']))->toBe('it');
+        expect(inertiaProps(Inertia::render('Test'))['locale'])->toBe('it');
     });
 
-    it('does not share translations prop when shared config is empty', function () {
-        Inertia::flushShared();
-        (new InertiaI18nServiceProvider(app()))->boot();
+    it('resolves the locale prop when the response renders, not at boot', function () {
+        // Providers have booted; locale middleware runs afterwards.
+        app()->setLocale('ro');
 
-        $shared = Inertia::getShared();
-        $transProp = (string) config('inertia-i18n.props.translations', 'translations');
+        expect(inertiaProps(Inertia::render('Test'))['locale'])->toBe('ro');
+    });
 
-        expect(array_key_exists($transProp, $shared))->toBeTrue();
-        expect(value($shared[$transProp]))->toBeNull();
+    it('shares a null translations prop when shared config is empty', function () {
+        $props = inertiaProps(Inertia::render('Test'));
+
+        expect($props)->toHaveKey('translations');
+        expect($props['translations'])->toBeNull();
     });
 
     it('shares translations when shared config lists groups', function () {
@@ -97,12 +61,8 @@ describe('InertiaI18nServiceProvider', function () {
         $this->langBase = $base;
 
         config(['inertia-i18n.shared' => ['common']]);
-        (new InertiaI18nServiceProvider(app()))->boot();
 
-        $shared = Inertia::getShared();
-        $transProp = (string) config('inertia-i18n.props.translations', 'translations');
-
-        expect(value($shared[$transProp]))->toBe([
+        expect(inertiaProps(Inertia::render('Test'))['translations'])->toBe([
             'common.site_name' => 'My App',
         ]);
     });
@@ -120,6 +80,13 @@ describe('InertiaI18nServiceProvider', function () {
 
         expect($shared)->toHaveKey('current_locale');
         expect($shared)->toHaveKey('i18n');
+
+        $this->langBase = withLangFiles(['en/nav.php' => ['home' => 'Home']]);
+        $props = inertiaProps(Inertia::render('Test')->withTranslations('nav'));
+
+        expect($props)->not->toHaveKey('translations');
+        expect($props['current_locale'])->toBe('en');
+        expect($props['i18n'])->toBe(['nav.home' => 'Home']);
     });
 
 });
@@ -233,4 +200,98 @@ describe('withTranslations() macro', function () {
         expect($props['translations'])->toHaveKey('settings.two_factor.title', 'Two-Factor');
     });
 
+    it('resolves locale and shared groups lazily, after the response is built', function () {
+        $this->langBase = withLangFiles([
+            'en/nav.php' => ['home' => 'Home'],
+            'it/nav.php' => ['home' => 'Casa'],
+            'it/common.php' => ['site' => 'Sito'],
+        ]);
+        app()->setLocale('en');
+
+        $response = Inertia::render('Test')->withTranslations('nav');
+
+        config(['inertia-i18n.shared' => ['common']]);
+        app()->setLocale('it');
+
+        expect(inertiaProps($response)['translations'])->toEqual([
+            'common.site' => 'Sito',
+            'nav.home' => 'Casa',
+        ]);
+    });
+
+    it('loads only shared groups when called without arguments', function () {
+        $this->langBase = withLangFiles(['en/common.php' => ['site' => 'Site']]);
+        config(['inertia-i18n.shared' => ['common']]);
+
+        $props = inertiaProps(Inertia::render('Test', ['keep' => 'yes'])->withTranslations());
+
+        expect($props['keep'])->toBe('yes');
+        expect($props['translations'])->toBe(['common.site' => 'Site']);
+    });
+
+    it('uses the groups of the last call when called repeatedly', function () {
+        $this->langBase = withLangFiles([
+            'en/nav.php' => ['x' => 'Nav'],
+            'en/other.php' => ['x' => 'Other'],
+        ]);
+
+        $props = inertiaProps(Inertia::render('Test')->withTranslations('nav')->withTranslations('other'));
+
+        expect($props['translations'])->toBe(['other.x' => 'Other']);
+    });
+
+    it('fills missing keys from the fallback locale', function () {
+        $this->langBase = withLangFiles([
+            'en/nav.php' => ['home' => 'Home', 'about' => 'About'],
+            'it/nav.php' => ['home' => 'Casa'],
+        ]);
+        app('translator')->setFallback('en');
+        app()->setLocale('it');
+
+        expect(inertiaProps(Inertia::render('Test')->withTranslations('nav'))['translations'])->toEqual([
+            'nav.home' => 'Casa',
+            'nav.about' => 'About',
+        ]);
+    });
+
+    it('sends the catalog as a JSON object, even when empty or keyed by integers', function () {
+        $this->langBase = withLangFiles(['en.json' => '{"0": "zero", "1": "one"}']);
+
+        $empty = inertiaProps(Inertia::render('Test')->withTranslations('missing'), assoc: false);
+        $numeric = inertiaProps(Inertia::render('Test')->withTranslations('@json'), assoc: false);
+
+        expect($empty->translations)->toEqual(new stdClass);
+        expect($numeric->translations)->toEqual((object) ['0' => 'zero', '1' => 'one']);
+    });
+
+    it('does not load any catalog for partial reloads that exclude it', function () {
+        $marker = sys_get_temp_dir().'/inertia-i18n-loaded-'.uniqid();
+        $this->langBase = withLangFiles([
+            'en/nav.php' => "<?php file_put_contents('{$marker}', 'x'); return ['home' => 'Home'];",
+        ]);
+        config(['inertia-i18n.shared' => ['nav']]);
+        $partial = ['HTTP_X_INERTIA_PARTIAL_COMPONENT' => 'Test', 'HTTP_X_INERTIA_PARTIAL_DATA' => 'locale'];
+
+        expect(inertiaProps(Inertia::render('Test'), $partial))->toBe(['locale' => 'en']);
+        expect(inertiaProps(Inertia::render('Test')->withTranslations('nav'), $partial))->toBe(['locale' => 'en']);
+        expect(file_exists($marker))->toBeFalse();
+
+        // Sanity check: the marker is written when the catalog is requested.
+        inertiaProps(Inertia::render('Test'));
+        expect(file_exists($marker))->toBeTrue();
+        unlink($marker);
+    });
+
+});
+
+// ---------------------------------------------------------------------------
+// Publishing
+// ---------------------------------------------------------------------------
+
+it('publishes the JavaScript helper and the config file', function () {
+    $this->artisan('vendor:publish', ['--tag' => 'inertia-i18n-js', '--force' => true])->assertExitCode(0);
+    $this->artisan('vendor:publish', ['--tag' => 'inertia-i18n-config', '--force' => true])->assertExitCode(0);
+
+    expect(resource_path('js/vendor/inertia-i18n/useTranslation.ts'))->toBeFile();
+    expect(config_path('inertia-i18n.php'))->toBeFile();
 });

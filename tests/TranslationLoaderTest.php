@@ -1,47 +1,7 @@
 <?php
 
 use AlecsCodes\InertiaI18n\TranslationLoader;
-use Illuminate\Support\Facades\File;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Create a temporary lang directory structure and point Laravel's lang_path()
- * to it. Returns the base path so afterEach() can clean it up.
- */
-function withLangFiles(array $structure): string
-{
-    $base = sys_get_temp_dir().'/inertia-i18n-tests-'.uniqid();
-    mkdir($base, 0755, true);
-
-    foreach ($structure as $path => $content) {
-        $full = "{$base}/{$path}";
-        $dir  = dirname($full);
-
-        if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
-        if (str_ends_with($path, '.json')) {
-            file_put_contents($full, json_encode($content, JSON_PRETTY_PRINT));
-            continue;
-        }
-
-        file_put_contents($full, "<?php\nreturn ".var_export($content, true).';');
-    }
-
-    app()->useLangPath($base);
-
-    return $base;
-}
-
-afterEach(function () {
-    if (isset($this->langBase) && is_dir($this->langBase)) {
-        File::deleteDirectory($this->langBase);
-    }
-});
+use Illuminate\Translation\MessageSelector;
 
 // ---------------------------------------------------------------------------
 // load() — basic group loading
@@ -328,6 +288,7 @@ describe('load() locale isolation', function () {
             'en/nav.php' => ['home' => 'Home', 'about' => 'About'],
             'it/nav.php' => ['home' => 'Casa'],
         ]);
+        config(['inertia-i18n.fallback' => false]);
 
         expect(TranslationLoader::load('it', 'nav'))->not->toHaveKey('nav.about');
     });
@@ -336,8 +297,186 @@ describe('load() locale isolation', function () {
         $this->langBase = withLangFiles([
             'en/nav.php' => ['home' => 'Home'],
         ]);
+        config(['inertia-i18n.fallback' => false]);
 
         expect(TranslationLoader::load('fr', 'nav'))->toBe([]);
     });
 
+});
+
+// ---------------------------------------------------------------------------
+// Fallback locale
+// ---------------------------------------------------------------------------
+
+describe('load() fallback locale', function () {
+
+    beforeEach(fn () => app('translator')->setFallback('en'));
+
+    it('fills keys missing from the active locale with fallback values', function () {
+        $this->langBase = withLangFiles([
+            'en/nav.php' => ['home' => 'Home', 'about' => 'About'],
+            'it/nav.php' => ['home' => 'Casa'],
+        ]);
+
+        expect(TranslationLoader::load('it', 'nav'))->toEqual([
+            'nav.home' => 'Casa',
+            'nav.about' => 'About',
+        ]);
+    });
+
+    it('keeps empty strings and "0" from the active locale', function () {
+        $this->langBase = withLangFiles([
+            'en/nav.php' => ['a' => 'A', 'b' => 'B'],
+            'it/nav.php' => ['a' => '', 'b' => '0'],
+        ]);
+
+        expect(TranslationLoader::load('it', 'nav'))->toBe(['nav.a' => '', 'nav.b' => '0']);
+    });
+
+    it('includes groups that exist only in the fallback locale when using *', function () {
+        $this->langBase = withLangFiles([
+            'en/only_en.php' => ['x' => 'Fallback'],
+            'it/nav.php' => ['home' => 'Casa'],
+        ]);
+
+        expect(TranslationLoader::load('it', '*'))->toEqual([
+            'only_en.x' => 'Fallback',
+            'nav.home' => 'Casa',
+        ]);
+    });
+
+    it('can be disabled with the fallback option', function () {
+        $this->langBase = withLangFiles([
+            'en/nav.php' => ['home' => 'Home'],
+        ]);
+        config(['inertia-i18n.fallback' => false]);
+
+        expect(TranslationLoader::load('it', 'nav'))->toBe([]);
+    });
+
+});
+
+// ---------------------------------------------------------------------------
+// Standard lang/{locale}.json catalog
+// ---------------------------------------------------------------------------
+
+describe("load() '@json' catalog", function () {
+
+    it('loads lang/{locale}.json with literal keys and string values only', function () {
+        $this->langBase = withLangFiles([
+            'en.json' => ['Welcome, :name' => 'Welcome, :name', 'dotted.key' => 'Dotted', 'skip' => 4, 'nested' => ['x' => 'y']],
+        ]);
+
+        expect(TranslationLoader::load('en', '@json'))->toBe([
+            'Welcome, :name' => 'Welcome, :name',
+            'dotted.key' => 'Dotted',
+        ]);
+    });
+
+    it('preserves integer-like keys', function () {
+        $this->langBase = withLangFiles([
+            'en.json' => '{"404": "Not Found", "500": "Server Error"}',
+            'en/nav.php' => ['home' => 'Home'],
+        ]);
+
+        expect(TranslationLoader::load('en', 'nav', '@json'))->toBe([
+            'nav.home' => 'Home',
+            404 => 'Not Found',
+            500 => 'Server Error',
+        ]);
+    });
+
+    it("is not included by '*' unless requested", function () {
+        $this->langBase = withLangFiles([
+            'en.json' => ['Hello' => 'Hello'],
+            'en/nav.php' => ['home' => 'Home'],
+        ]);
+
+        expect(TranslationLoader::load('en', '*'))->toBe(['nav.home' => 'Home']);
+        expect(TranslationLoader::load('en', '*', '@json'))->toBe(['nav.home' => 'Home', 'Hello' => 'Hello']);
+    });
+
+    it('falls back to the fallback locale catalog', function () {
+        app('translator')->setFallback('en');
+        $this->langBase = withLangFiles([
+            'en.json' => ['Hello' => 'Hello', 'Bye' => 'Bye'],
+            'it.json' => ['Hello' => 'Ciao'],
+        ]);
+
+        expect(TranslationLoader::load('it', '@json'))->toEqual(['Hello' => 'Ciao', 'Bye' => 'Bye']);
+    });
+
+});
+
+// ---------------------------------------------------------------------------
+// Invalid input
+// ---------------------------------------------------------------------------
+
+describe('load() invalid input', function () {
+
+    it('throws on malformed JSON instead of silently dropping the catalog', function () {
+        $this->langBase = withLangFiles(['en/broken.json' => '{"a": ']);
+
+        expect(fn () => TranslationLoader::load('en', 'broken'))
+            ->toThrow(RuntimeException::class, 'broken.json] contains an invalid JSON structure');
+    });
+
+    it('treats an empty JSON list or a scalar as an empty catalog', function () {
+        $this->langBase = withLangFiles([
+            'en/empty.json' => '[]',
+            'en/scalar.json' => '"text"',
+            'en.json' => '[]',
+        ]);
+
+        expect(TranslationLoader::load('en', 'empty', 'scalar', '@json'))->toBe([]);
+    });
+
+    it('rejects locales that could escape the lang directory', function (string $locale) {
+        $this->langBase = withLangFiles(['en/nav.php' => ['home' => 'Home']]);
+
+        expect(fn () => TranslationLoader::load($locale, '*'))->toThrow(InvalidArgumentException::class);
+    })->with(['..', '../en', 'en/../en', 'en\\x', "en\0", '']);
+
+    it('never executes files outside the locale directory for a traversal locale', function () {
+        $this->langBase = withLangFiles([]);
+        $marker = $this->langBase.'/executed';
+        file_put_contents($this->langBase.'/outside.php', "<?php file_put_contents('{$marker}', 'x'); return [];");
+        app()->useLangPath($this->langBase.'/lang');
+
+        expect(fn () => TranslationLoader::load('..', '*'))->toThrow(InvalidArgumentException::class);
+        expect(file_exists($marker))->toBeFalse();
+    });
+
+    it('accepts locale codes with regions and variants', function () {
+        $this->langBase = withLangFiles([
+            'pt_BR/nav.php' => ['home' => 'Início'],
+            'sr@latin/nav.php' => ['home' => 'Početna'],
+        ]);
+
+        expect(TranslationLoader::load('pt_BR', 'nav'))->toBe(['nav.home' => 'Início']);
+        expect(TranslationLoader::load('sr@latin', 'nav'))->toBe(['nav.home' => 'Početna']);
+    });
+
+    it('still accepts slash-separated group names', function () {
+        $this->langBase = withLangFiles(['en/settings/two_factor.php' => ['title' => 'Two-Factor']]);
+
+        expect(TranslationLoader::load('en', 'settings/two_factor'))->toBe([
+            'settings/two_factor.title' => 'Two-Factor',
+        ]);
+    });
+
+});
+
+// ---------------------------------------------------------------------------
+// Plural parity: the same vectors run against the TypeScript helper
+// (tests/js/useTranslation.test.mjs), so both sides choose the same form.
+// ---------------------------------------------------------------------------
+
+it('agrees with Laravel MessageSelector on the shared plural vectors', function () {
+    $vectors = json_decode(file_get_contents(__DIR__.'/fixtures/plural-vectors.json'), true, 512, JSON_THROW_ON_ERROR);
+    $selector = new MessageSelector;
+
+    foreach ($vectors as ['line' => $line, 'locale' => $locale, 'count' => $count, 'expected' => $expected]) {
+        expect($selector->choose($line, $count, $locale))->toBe($expected, "{$locale} / {$count} / {$line}");
+    }
 });
