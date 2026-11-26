@@ -36,23 +36,47 @@ final class InertiaI18nServiceProvider extends ServiceProvider
     {
         $localeProp = config('inertia-i18n.props.locale', 'locale');
         $transProp = config('inertia-i18n.props.translations', 'translations');
-        $shared = (array) config('inertia-i18n.shared', []);
+        $localesProp = config('inertia-i18n.props.translation_locales', 'translationLocales');
+        $resolveShared = static function (): ?array {
+            $request = app('request');
+            $locale = app()->getLocale();
+            $shared = (array) config('inertia-i18n.shared', []);
+            $fallbackEnabled = (bool) config('inertia-i18n.fallback', true);
+            $fallbackLocale = app('translator')->getFallback();
+            $langRoot = realpath(lang_path()) ?: lang_path();
+            $inputKey = hash('sha256', serialize([$locale, $shared, $fallbackEnabled, $fallbackLocale, $langRoot]));
+            $cacheKey = '__inertia_i18n_shared_results';
+            $cache = (array) $request->attributes->get($cacheKey, []);
+            if (array_key_exists($inputKey, $cache)) {
+                return $cache[$inputKey];
+            }
+            $result = empty($shared)
+                ? null
+                : TranslationLoader::loadWithMetadata($locale, ...$shared);
+            $cache[$inputKey] = $result;
+            $request->attributes->set($cacheKey, $cache);
+            return $result;
+        };
 
         Inertia::share([
-            // Always share the current locale
-            $localeProp => app()->getLocale(),
+            $localeProp => static fn (): string => app()->getLocale(),
 
-            // Share shared translations on every response.
-            // Returns null (shared as nothing) when no shared groups are configured,
-            // so the prop is omitted entirely rather than sent as an empty object.
-            $transProp => static function () use ($shared): ?array {
-                if (empty($shared)) {
+            $transProp => static function () use ($resolveShared): array|object|null {
+                $result = $resolveShared();
+                if ($result === null) {
                     return null;
                 }
+                $catalog = $result['translations'];
+                return $catalog === [] ? [] : (object) $catalog;
+            },
 
-                $locale = app()->getLocale();
-
-                return TranslationLoader::load($locale, ...$shared) ?: null;
+            $localesProp => static function () use ($resolveShared): array|object|null {
+                $result = $resolveShared();
+                if ($result === null) {
+                    return null;
+                }
+                $locales = $result['translationLocales'];
+                return $locales === [] ? [] : (object) $locales;
             },
         ]);
     }
