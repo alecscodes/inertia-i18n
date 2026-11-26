@@ -89,8 +89,8 @@ function ownString(value: unknown, key: string): string | undefined {
 function replaceParams(raw: string, params?: TranslationParams): string {
     if (!params || typeof params !== 'object') return raw;
     const generated = new Map<string, string>();
-    const originals: Array<[string, string]> = [];
-    for (const key of Object.keys(params)) {
+    // Sort source keys so generated aliases resolve deterministically regardless of object insertion order.
+    for (const key of Object.keys(params).sort()) {
         const value = params[key];
         if (typeof value !== 'string' && typeof value !== 'number') continue;
         const token = `:${key}`;
@@ -99,12 +99,9 @@ function replaceParams(raw: string, params?: TranslationParams): string {
             const ucfirst = chars.length ? chars[0].toUpperCase() + chars.slice(1).join('') : '';
             generated.set(`:${key[0]?.toUpperCase() ?? ''}${key.slice(1)}`, ucfirst);
             generated.set(`:${key.toUpperCase()}`, String(value).toUpperCase());
-            originals.push([token, String(value)]);
+            generated.set(token, String(value));
         }
     }
-    // Laravel's replacement map puts raw names last, so a supplied :Name parameter wins
-    // over :Name generated from :name. Parameter insertion order decides cross-key collisions.
-    for (const [token, value] of originals) generated.set(token, value);
     const tokens = [...generated.entries()].map(([token, value]) => ({ token, value }));
     tokens.sort((a, b) => b.token.length - a.token.length || (a.token < b.token ? -1 : a.token > b.token ? 1 : 0));
     if (!tokens.length) return raw;
@@ -120,14 +117,15 @@ function pluralIndex(locale: string, number: number): number {
     const [lang, region, ...rest] = normalized.split('_');
     if (rest.length) return 0;
     const regions: Record<string, string> = {
-        az: 'az', bo: 'bo', dz: 'dz', id: 'id', ja: 'ja', ka: 'ka', km: 'km', kn: 'kn', ko: 'ko', ms: 'ms', th: 'th', tr: 'tr', vi: 'vi', zh: 'zh',
+        az: 'az', bo: 'bo', dz: 'dz', eo: 'eo', id: 'id', ja: 'ja', ka: 'ka', km: 'km', kn: 'kn', ko: 'ko', ms: 'ms', th: 'th', tr: 'tr', vi: 'vi', zh: 'zh',
         af: 'af', bn: 'bn', bg: 'bg', ca: 'ca', da: 'da', de: 'de', el: 'el', en: 'en', es: 'es', et: 'et', eu: 'eu', fa: 'fa', fi: 'fi', fo: 'fo', fur: 'fur', fy: 'fy', gl: 'gl', gu: 'gu', ha: 'ha', he: 'he', hu: 'hu', is: 'is', it: 'it', ku: 'ku', lb: 'lb', ml: 'ml', mn: 'mn', mr: 'mr', nb: 'nb', ne: 'ne', nl: 'nl', nn: 'nn', no: 'no', om: 'om', or: 'or', pa: 'pa', pap: 'pap', ps: 'ps', pt: 'pt', so: 'so', sq: 'sq', sv: 'sv', sw: 'sw', ta: 'ta', te: 'te', tk: 'tk', ur: 'ur', zu: 'zu',
         am: 'am', fil: 'fil', fr: 'fr', hi: 'hi', hy: 'hy', ln: 'ln', mg: 'mg', nso: 'nso', ti: 'ti', wa: 'wa', be: 'be', bs: 'bs', hr: 'hr', ru: 'ru', sr: 'sr', uk: 'uk', cs: 'cs', sk: 'sk', ga: 'ga', lt: 'lt', sl: 'sl', mk: 'mk', mt: 'mt', lv: 'lv', pl: 'pl', cy: 'cy', ro: 'ro', ar: 'ar',
     };
     const supportedRegions: Record<string, string> = {
         az:'AZ',bo:'CN IN',dz:'BT',af:'ZA',bn:'BD IN',bg:'BG',ca:'AD ES FR IT',da:'DK',de:'AT BE CH DE LI LU',el:'CY GR',en:'AG AU BW CA DK GB HK IE IN NG NZ PH SG US ZA ZM ZW',es:'AR BO CL CO CR CU DO EC ES GT HN MX NI PA PE PR PY SV US UY VE',et:'EE',eu:'ES FR',fa:'IR',fi:'FI',fo:'FO',fur:'IT',fy:'DE NL',gl:'ES',gu:'IN',ha:'NG',he:'IL',hu:'HU',is:'IS',it:'CH IT',ku:'TR',lb:'LU',ml:'IN',mn:'MN',mr:'IN',nb:'NO',ne:'NP',nl:'AW BE NL',nn:'NO',om:'ET KE',or:'IN',pa:'IN PK',pap:'AN AW CW',ps:'AF',pt:'BR PT',so:'DJ ET KE SO',sq:'AL MK',sv:'FI SE',sw:'KE TZ',ta:'IN LK',te:'IN',tk:'TM',ur:'IN PK',zu:'ZA',
-        id:'ID',ja:'JP',ka:'GE',km:'KH',kn:'IN',ko:'KR',ms:'MY',th:'TH',tr:'CY TR',vi:'VN',zh:'CN HK SG TW',
+        eo:'US',id:'ID',ja:'JP',ka:'GE',km:'KH',kn:'IN',ko:'KR',ms:'MY',th:'TH',tr:'CY TR',vi:'VN',zh:'CN HK SG TW',
         am:'ET',fil:'PH',fr:'BE CA CH FR LU',hi:'IN',hy:'AM',ln:'CD',mg:'MG',nso:'ZA',ti:'ER ET',wa:'BE',be:'BY',bs:'BA',hr:'HR',ru:'RU UA',sr:'ME RS',uk:'UA',cs:'CZ',sk:'SK',ga:'IE',lt:'LT',sl:'SI',mk:'MK',mt:'MT',lv:'LV',pl:'PL',cy:'GB',ro:'RO',
+        ar:'AE BH DZ EG IN IQ JO KW LB LY MA OM QA SA SD SS SY TN YE',
     };
     const known = new Set('az bo dz id ja jv ka km kn ko ms th tr vi zh af bn bg ca da de el en eo es et eu fa fi fo fur fy gl gu ha he hu is it ku lb ml mn mr nah nb ne nl nn no om or pa pap ps pt so sq sv sw ta te tk ur zu am bh fil fr gun hi hy ln mg nso ti wa xbr be bs hr ru sr uk cs sk ga lt sl mk mt lv pl cy ro ar'.split(' '));
     if (!known.has(lang)) return 0;

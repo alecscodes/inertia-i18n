@@ -7,17 +7,15 @@ A small Laravel–Inertia bridge that sends selected Laravel-style PHP and JSON 
 
 ## Requirements and compatibility
 
-The package requires PHP `^8.2`, Laravel components `^10.0 || ^11.0 || ^12.0 || ^13.0`, and Inertia Laravel `^2.0 || ^3.0`. Not every combination is supported; CI exercises these conditional families:
+The package manifest accepts PHP `^8.2`, Laravel components `^10.0 || ^11.0 || ^12.0 || ^13.0`, and Inertia Laravel `^2.0 || ^3.0`. Not every combination is supported. The required CI matrix currently exercises these secure modern families:
 
 | PHP | Laravel | Inertia Laravel | Testbench | Pest |
 | --- | --- | --- | --- | --- |
-| 8.2 | 10 | 2 | 8 | 2 |
-| 8.2 | 11 (11.35+) | 2 or 3 | 9 | 3 |
 | 8.2 | 12 | 2 or 3 | 10 | 3 |
 | 8.3 | 13 | 2 or 3 | 11 | 3 |
 | 8.4 | 13 | 3 | 11 | 4 |
 
-Inertia Laravel 3 requires Laravel 11.35 or newer, so Laravel 10 is paired only with Inertia 2. Laravel 13 requires PHP 8.3 or newer. The package does not add namespaced/package translation catalogs.
+The separate `legacy-compatibility (informational/unverified)` CI job probes Laravel 10 with Inertia 2 and Laravel 11.35+ with Inertia 2/3 using the same current Composer security policy. Composer currently blocks dependency resolution for those end-of-security-support framework families due to advisories, so they are declared historical compatibility ranges, not currently CI-verified support claims. The probe never disables advisory or platform checks; see the workflow and CI report for exact results. Inertia Laravel 3 requires Laravel 11.35 or newer, and Laravel 13 requires PHP 8.3 or newer. The package does not add namespaced/package translation catalogs.
 
 ## Install and publish
 
@@ -140,13 +138,13 @@ const title = computed(() => translations.t('dashboard.title'));
 <template><h1>{{ title }}</h1></template>
 ```
 
-Svelte 5: Inertia's Svelte adapter exposes its reactive `page` object; `$derived` tracks a helper read:
+Svelte 5: Inertia's Svelte adapter exposes `page` as a store. Use Svelte's `$page` auto-subscription inside the getter so the derived value tracks navigation updates:
 
 ```svelte
 <script lang="ts">
   import { page } from '@inertiajs/svelte';
   import { useTranslation } from '@/vendor/inertia-i18n/useTranslation';
-  const translations = useTranslation(() => page.props);
+  const translations = useTranslation(() => $page.props);
   let title = $derived(translations.t('dashboard.title'));
 </script>
 <h1>{title}</h1>
@@ -158,7 +156,7 @@ The returned `locale` and `translations` are getters. Destructuring a primitive 
 
 For positional rules, the package currently uses the absolute count, so negative five selects as five. This matches Laravel 13's current positional normalization, but Laravel 12's current implementation does not take absolute value; negative positional parity therefore differs by framework version. Conditional whitespace handling is intentionally modernized and may differ from older Laravel parsing. Positional selection uses the package's tested locale-index families rather than `Intl.PluralRules` categories; unknown locale codes use the default first-form behavior.
 
-Interpolation recognizes `:name`, `:Name`, and `:NAME` variants for a parameter named `name`. Casing uses JavaScript Unicode-aware casing and first-code-point handling; it is not guaranteed to match PHP casing for every locale or Unicode edge case. Replacement is single-pass and inserted values are literal (including `$` and backslashes); this helper is not a general Laravel message formatter.
+Interpolation recognizes `:name`, `:Name`, and `:NAME` variants for a parameter named `name`. Casing uses JavaScript Unicode-aware casing and first-code-point handling; it is not guaranteed to match PHP casing for every locale or Unicode edge case. When parameter names generate the same alias, keys are processed in sorted order and each parameter's raw token wins for that key, making collisions deterministic. Replacement is single-pass and inserted values are literal (including `$` and backslashes); this helper is not a general Laravel message formatter.
 
 ## Locale switching and partial reloads
 

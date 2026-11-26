@@ -2,7 +2,8 @@
 
 use AlecsCodes\InertiaI18n\Tests\TestCase;
 
-uses(TestCase::class)->in(__DIR__);
+// Bind only the standard suite files; CustomPropsTest has its own TestCase.
+uses(TestCase::class)->in(__DIR__.'/TranslationLoaderTest.php', __DIR__.'/ServiceProviderTest.php');
 
 function withLangFiles(array $structure): string
 {

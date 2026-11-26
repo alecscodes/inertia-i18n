@@ -49,7 +49,9 @@ test('placeholders are single-pass, deterministic, literal, and case compatible'
   assert.equal(useTranslation({ translations: { x: ':a :b' } }).t('x', { a: ':b', b: 'B' }), ':b B');
   assert.equal(useTranslation({ translations: { x: ':a.* :a.*' } }).t('x', { 'a.*': '$\\' }), '$\\ $\\');
   assert.equal(useTranslation({ translations: { x: ':name :Name :NAME' } }).t('x', { name: 'éclair' }), 'éclair Éclair ÉCLAIR');
-  assert.equal(useTranslation({ translations: { x: ':name :Name :NAME' } }).t('x', { name: 'low', Name: 'User' }), 'low User USER');
+  assert.equal(useTranslation({ translations: { x: ':name :Name :NAME' } }).t('x', { name: 'low', Name: 'User' }), 'low Low LOW');
+  assert.equal(useTranslation({ translations: { x: ':Name' } }).t('x', { Name: 'User', name: 'low' }), 'Low');
+  assert.equal(useTranslation({ translations: { x: ':Name' } }).t('x', { name: 'low', Name: 'User' }), 'Low');
   assert.equal(tr.t(' key '), ' key ');
 });
 
