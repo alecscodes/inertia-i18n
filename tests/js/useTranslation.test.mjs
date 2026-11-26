@@ -113,4 +113,5 @@ test('Laravel plural parity vectors shared with the PHP MessageSelector suite', 
   }
   assert.equal(useTranslation({ locale: 'ru-RU', translations: { x: 'one|few|many' } }).tc('x', 4), 'few');
   assert.equal(useTranslation({ locale: 'ja-JP', translations: { x: 'one|other' } }).tc('x', 10), 'one');
+  assert.equal(useTranslation({ locale: 'ar-SA', translations: { x: 'zero|one|two|few|many|other' } }).tc('x', 11), 'many');
 });

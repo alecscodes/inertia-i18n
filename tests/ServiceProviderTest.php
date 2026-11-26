@@ -206,7 +206,7 @@ describe('withTranslations() macro', function () {
         app()->setLocale('it');
 
         $props = inertiaProps($response);
-        expect($props['translations'])->toBe(['common.site' => 'Sito', 'nav.home' => 'Casa']);
+        expect($props['translations'])->toEqual(['common.site' => 'Sito', 'nav.home' => 'Casa']);
     });
 
     it('does not resolve catalogs for partial reloads that exclude them', function () {

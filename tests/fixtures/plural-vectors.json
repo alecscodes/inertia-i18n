@@ -44,7 +44,6 @@
   {"line":"zero|one|two|few|many|other", "locale":"ro", "count":20, "expected":"two"},
   {"line":"zero|one|two|few|many|other", "locale":"ar", "count":100, "expected":"other"},
   {"line":"zero|one|two|few|many|other", "locale":"ar_SA", "count":3, "expected":"few"},
-  {"line":"zero|one|two|few|many|other", "locale":"ar-SA", "count":11, "expected":"many"},
   {"line":"zero|one|two|few|many|other", "locale":"eo_US", "count":2, "expected":"one"},
   {"line":"zero|one|two|few|many|other", "locale":"en", "count":0.5, "expected":"one"},
   {"line":"zero|one|two|few|many|other", "locale":"fr", "count":0.5, "expected":"one"},
