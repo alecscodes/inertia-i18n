@@ -23,6 +23,8 @@ All notable changes to this project will be documented here.
 
 ### Changed
 
+- **Breaking:** Laravel 10 and 11 are no longer supported. Laravel 12 or 13 is required.
+
 - Malformed JSON translation files throw a `RuntimeException` naming the file (as Laravel's own loader does) instead of being silently ignored.
 - `withTranslations()` now sends `translations` as a JSON object (`{}` when empty) instead of `[]`.
 - CI tests Laravel 12/13 × Inertia 2/3 on PHP 8.2–8.5, plus the TypeScript helper on Node 22/24.

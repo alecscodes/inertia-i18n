@@ -9,10 +9,10 @@ Minimal i18n bridge for **Laravel + Inertia.js**: share your Laravel translation
 ## Requirements
 
 - PHP `^8.2`
-- Laravel `^10.0 || ^11.0 || ^12.0 || ^13.0`
+- Laravel `^12.0 || ^13.0`
 - Inertia Laravel `^2.0 || ^3.0`
 
-CI tests Laravel 12 and 13 with Inertia 2 and 3 on PHP 8.2–8.5. Laravel 10 and 11 are still allowed by `composer.json`, but they are not tested: they no longer receive security fixes, and Composer refuses to install them because of open security advisories.
+CI tests Laravel 12 and 13 with Inertia 2 and 3 on PHP 8.2–8.5. Laravel 10 and 11 are no longer supported.
 
 ## Install
 
