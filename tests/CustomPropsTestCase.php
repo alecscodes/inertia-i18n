@@ -2,7 +2,7 @@
 
 namespace AlecsCodes\InertiaI18n\Tests;
 
-final class CustomPropsTestCase extends TestCase
+class CustomPropsTestCase extends TestCase
 {
     protected function defineEnvironment($app): void
     {
